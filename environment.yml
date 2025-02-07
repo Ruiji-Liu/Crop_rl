@@ -1,0 +1,12 @@
+name: crop_rl
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - numpy
+  - scipy
+  - matplotlib
+  - pip
+  - pip:
+      - gym
+      - stable-baselines3
