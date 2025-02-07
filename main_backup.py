@@ -84,6 +84,7 @@ class CropRowEnv(gym.Env):
         self.total_reward = 0
         
         # Return the initial observation and an empty info dict (as required by Gymnasium)
+        
         return np.array([self.state[0], self.state[1], -1.0], dtype=np.float32), {}
 
     def _get_robot_coords(self):
@@ -135,6 +136,7 @@ class CropRowEnv(gym.Env):
                 if 0 <= value < self.num_corridors and value != corridor:
                     corridor = value
                     # print("pos", pos, self.corridor_length - 1)
+                    print("corridor", corridor)
                     if pos == self.corridor_length - 1:
                         self.orientation = 1
                     else:

@@ -10,17 +10,20 @@ from main import CropRowEnv  # Import your custom environment
 config = {
     "num_crop_rows": 6,
     "corridor_length": 6,
+    'max_episode_steps': 50,
     "log_dir": "./logs",
     "model_dir": "./models",
 }
 
 def test():
     # Create the environment
-    env = CropRowEnv(num_crop_rows=config["num_crop_rows"], corridor_length=config["corridor_length"])
+    env = CropRowEnv(num_crop_rows=config["num_crop_rows"], corridor_length=config["corridor_length"], 
+                     max_episode_steps=config["max_episode_steps"])
 
     # Load the trained model
+    model_path = os.path.join(config["log_dir"], "dqn_crop_final.zip")
     # model_path = os.path.join(config["log_dir"], "dqn_crop_300000_steps.zip")
-    model_path = os.path.join(config["model_dir"], "kind_of_working.zip")
+    # model_path = os.path.join(config["model_dir"], "kind_of_working.zip")
     
     model = DQN.load(model_path)
 
