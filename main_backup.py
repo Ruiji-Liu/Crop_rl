@@ -31,8 +31,12 @@ class CropRowEnv(gym.Env):
                                np.random.randint(0, self.corridor_length - 2))
         # The robot's state: (corridor, vertical_position)
         self.observation_space = spaces.Box(
-            low=np.array([0, -1.5], dtype=np.float32),
-            high=np.array([self.num_corridors - 1, self.corridor_length - 0.5], dtype=np.float32),
+            low=np.array([0, -1.5, -1.0], dtype=np.float32),
+            high=np.array([
+                self.num_corridors - 1, 
+                self.corridor_length - 0.5, 
+                1.0
+            ], dtype=np.float32),
             dtype=np.float32
         )
 
@@ -40,6 +44,7 @@ class CropRowEnv(gym.Env):
         # self.action_space = spaces.MultiDiscrete([3, self.num_corridors])
         # self.action_space = spaces.Discrete(3 * self.num_corridors)
         self.action_space = spaces.Discrete(2 + self.num_corridors)
+
         # Orientation: None until a vertical move is initiated.
         # 0: up (left is west; crop row = corridor)
         # 1: down (left is east; crop row = corridor + 1)
@@ -65,18 +70,21 @@ class CropRowEnv(gym.Env):
         # Reset the random seed if provided
         if seed is not None:
             np.random.seed(seed)
+        
         # Here you can randomize the state or set fixed values for testing
         self.state = (np.random.randint(self.num_corridors),
-                            np.random.randint(0, self.corridor_length - 2))
-        # self.state = (3, 8)
+                    np.random.randint(0, self.corridor_length - 2))
+        # self.state = (0,2)
         self.orientation = None
         self.sampling_point = (np.random.randint(self.num_crop_rows),
-                               np.random.randint(0, self.corridor_length - 2))
-        # self.sampling_point = (3,3)
+                            np.random.randint(0, self.corridor_length - 2))
+        # self.sampling_point = (0, 3)
         self.path = []
         self.path.append(self._get_robot_coords())
         self.total_reward = 0
-        return np.array(self.state, dtype=np.int32)
+        
+        # Return the initial observation and an empty info dict (as required by Gymnasium)
+        return np.array([self.state[0], self.state[1], -1.0], dtype=np.float32), {}
 
     def _get_robot_coords(self):
         """Return the robot's current (x, y) coordinates for visualization."""
@@ -85,44 +93,34 @@ class CropRowEnv(gym.Env):
         return (corridor + 0.5, pos)
 
     def step(self, action):
-        """
-        Execute an action.
-        Action is a two-element array: [action_type, value].
-        Returns: (observation, step_reward, done, info)
-        """
+        """Execute an action."""
         corridor, pos = self.state
-        # action_type, value = action
-        # action_type = action // self.num_corridors
-        # value = action % self.num_corridors
+        # Decode the action into action_type and value
         if action < 2:
             action_type = 0
             value = action  # 0: up, 1: down
         else:
             action_type = 2
-            value = action - 2 
-        reward = -0.1  # Default step penalty
+            value = action - 2  # target corridor index (0 to num_corridors-1)
+        reward = -0.05  # Default step penalty
         done = False
+        truncated = False  # Add truncated flag (not used in this environment)
 
         # Check if at an end of the corridor.
         at_end = (pos == -1 or pos == self.corridor_length - 1)
-        print("in step function, action type is", action_type)
+        # print("in step function, action type is", action_type)
         if action_type == 0:
             self.turn = False
-            print("in action type 0")
+            # print("in action type 0")
             # Vertical movement.
-            # if self.initial_corridor is None:
-            #     self.initial_corridor = True
-
-            
             if self.orientation is None:
-                # print("orientation is None", value)
                 if value == 0:
                     self.orientation = 0  # up
                 elif value == 1:
                     self.orientation = 1  # down
                 else:
                     reward = -0.6  # invalid value
-            print("orientation", self.orientation)
+            # print("orientation", self.orientation)
 
             if self.orientation == 0:  # moving up
                 if pos < self.corridor_length - 1:
@@ -132,20 +130,17 @@ class CropRowEnv(gym.Env):
                     pos -= 1
         elif action_type == 2:
             # Switch corridor.
-            # print("at end")
             self.initial_corridor = False
             if at_end:
                 if 0 <= value < self.num_corridors and value != corridor:
                     corridor = value
-                    print("pos", pos, self.corridor_length - 1)
+                    # print("pos", pos, self.corridor_length - 1)
                     if pos == self.corridor_length - 1:
                         self.orientation = 1
                     else:
                         self.orientation = 0  # reset orientation after switching
                     self.turn = True
-                    # (Optional) You could penalize a turn as well here
-
-                    reward -= 0.3  # Penalize switching/turning too frequently
+                    # reward -= 0.15  # Penalize switching/turning too frequently
                 else:
                     reward = -0.5  # invalid target corridor
             else:
@@ -169,14 +164,15 @@ class CropRowEnv(gym.Env):
         # Check goal condition.
         goal_crop, goal_pos = self.sampling_point
         if (pos == goal_pos) and (left_crop_row is not None) and (left_crop_row == goal_crop):
-            reward += 10.0
+            reward += 20.0
             done = True
 
         # Accumulate the reward (for monitoring purposes)
         self.total_reward += reward
-
-        # Return the immediate reward (for DQN training) along with observation and done flag.
-        return np.array(self.state, dtype=np.int32), reward, done, {}
+        # Return the observation, reward, terminated, truncated, and info
+        orientation_value = self.orientation if self.orientation is not None else -1.0
+        obs = np.array([corridor, pos, orientation_value], dtype=np.float32)
+        return obs, reward, done, truncated, {}
 
     def render(self, mode="human"):
         """Render the environment with the robot's full path."""
@@ -194,7 +190,7 @@ class CropRowEnv(gym.Env):
         # Draw the robot's path.
         if len(self.path) > 1:
             xs, ys = zip(*self.path)
-            self.ax.plot(xs, ys, 'k--', color='orange', linewidth=1, label="Path")
+            self.ax.plot(xs, ys, '--', color='orange', linewidth=1, label="Path")  # Removed 'k--'
 
         # Draw the current robot position.
         robot_x, robot_y = self._get_robot_coords()
@@ -203,16 +199,12 @@ class CropRowEnv(gym.Env):
         # Draw orientation arrows.
         if self.orientation is not None:
             if self.initial_corridor is True:
-                # print("here1")
                 self.ax.arrow(robot_x, robot_y, -0.4, 0, head_width=0.2, head_length=0.2, fc='r', ec='r')
                 self.ax.arrow(robot_x, robot_y, 0, 0.4, head_width=0.2, head_length=0.2, fc='b', ec='b')
             elif self.orientation == 0 and self.initial_corridor is False:
-                # print("here2")
                 self.ax.arrow(robot_x, robot_y, -0.4, 0, head_width=0.2, head_length=0.2, fc='r', ec='r')
                 self.ax.arrow(robot_x, robot_y, 0, 0.4, head_width=0.2, head_length=0.2, fc='b', ec='b')
             elif self.orientation == 1 and self.initial_corridor is False:
-                # print("here3")
-                # Right arrow (red) and forward arrow (blue) when facing down.
                 self.ax.arrow(robot_x, robot_y, 0.4, 0, head_width=0.2, head_length=0.2, fc='r', ec='r')
                 self.ax.arrow(robot_x, robot_y, 0, -0.4, head_width=0.2, head_length=0.2, fc='b', ec='b')
 
@@ -226,6 +218,7 @@ class CropRowEnv(gym.Env):
 
     def close(self):
         plt.close()
+
 if __name__ == "__main__":
     num_crop_rows = 10
     corridor_length = 10
@@ -253,53 +246,10 @@ if __name__ == "__main__":
                     target = np.random.choice(possible_corridors) if possible_corridors else env.state[0]
                     action = 2 + target  # Switch to a new corridor (action >= 2)
         
-        state, reward, done, _ = env.step(action)
+        state, reward, done, _, _ = env.step(action)
         print(f"Action: {action} -> State: {state}, Step Reward: {reward:.2f}, Accumulated Reward: {env.total_reward:.2f}, Done: {done}")
         env.render()
         
     env.close()
     print("Episode finished with total reward: {:.2f}".format(env.total_reward))
 
-# if __name__ == "__main__":
-#     num_crop_rows = 10
-#     corridor_length = 10
-#     env = CropRowEnv(num_crop_rows=num_crop_rows, corridor_length=corridor_length + 2)
-#     state = env.reset()
-#     print("Initial state:", state, "Orientation:", env.orientation, "Goal:", env.sampling_point)
-#     print("Accumulated Reward: {:.2f}".format(env.total_reward))
-    
-#     done = False
-#     while not done:
-#         # If orientation is not yet set, initialize with a vertical action
-#         print("orientation", env.orientation)
-#         if env.orientation is None and env.initial_corridor is True:
-#             random_choice = np.random.choice([0, 1])
-#             print ("random choice", random_choice)
-#             action = [0, random_choice]  # Randomly choose up or down to set orientation
-#             # action = [0, 0]
-        
-#         else:
-#             print("initial corridor", env.initial_corridor)
-            
-#             # If not at the boundary, keep moving vertically
-#             if env.state[1] not in (-1, env.corridor_length - 1):
-#                 print("keep moving")
-#                 action = [0, 0]
-#             else:
-#                 # At boundary, switch corridor
-#                 if env.turn:
-#                     action = [0, env.orientation]
-#                 else:
-#                     possible_corridors = [c for c in range(env.num_corridors) if c != env.state[0]]
-#                     target = np.random.choice(possible_corridors) if possible_corridors else env.state[0]
-#                     action = [2, target]
-#             # if env.initial_corridor is False:
-#             #     print("call")
-#             #     print("orientation", env.orientation)
-#             #     action = [0, env.orientation]
-#         state, reward, done, _ = env.step(action)
-#         # print(f"Action: {action} -> State: {state}, Step Reward: {reward:.2f}, Accumulated Reward: {env.total_reward:.2f}, Done: {done}")
-#         env.render()
-        
-#     env.close()
-#     print("Episode finished with total reward: {:.2f}".format(env.total_reward))

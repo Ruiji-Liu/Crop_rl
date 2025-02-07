@@ -1,31 +1,45 @@
 import os
-# os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import torch
 from stable_baselines3 import DQN
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
+from stable_baselines3.common.env_util import DummyVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 from main import CropRowEnv
 import matplotlib.pyplot as plt
-
+import gymnasium as gym
+import numpy as np
 # Enable interactive mode so that matplotlib updates continuously.
-# plt.ion()
+plt.ion()
 
 # Configuration
 config = {
-    "total_timesteps": 100000,
+    "total_timesteps": 1000000,
     "log_dir": "./logs",
-    "save_freq": 10000,
+    "save_freq": 100000,
     "policy": "MlpPolicy",
-    "learning_rate": 1e-4,
-    "buffer_size": 10000,
+    "learning_rate": 1e-5,
+    "buffer_size": 100000,
     "learning_starts": 10000,
-    "batch_size": 256,
+    "batch_size": 128,
     "gamma": 0.99,
-    "target_update_interval": 1000,
+    "target_update_interval": 2000,
     # Render every N steps (set to 1 for every step or higher for less frequent rendering)
     "render_freq": 1
 }
+class ActionFilterWrapper(gym.Wrapper):
+    """
+    Wraps the environment to ensure only valid actions are chosen.
+    If an invalid action is selected, the closest valid action is used instead.
+    """
+    def __init__(self, env):
+        super(ActionFilterWrapper, self).__init__(env)
 
+    def step(self, action):
+        valid = self.env.valid_actions()
+        if action not in valid:
+            action = np.random.choice(valid)  # Select a valid action if invalid
+        return self.env.step(action)
 # Custom callback to track successful episodes
 class SuccessCallback(BaseCallback):
     def __init__(self, verbose=0):
@@ -65,14 +79,14 @@ def train():
     env = make_vec_env(
         CropRowEnv, 
         n_envs=1, 
-        env_kwargs={'num_crop_rows': 5, 'corridor_length': 5}
+        env_kwargs={'num_crop_rows': 6, 'corridor_length': 6}
     )
 
     # Create the model.
     model = DQN(
         config["policy"],
         env,
-        # policy_kwargs=dict(net_arch=[256, 256]),
+        policy_kwargs=dict(net_arch=[256, 256]),
         verbose=1,
         learning_rate=config["learning_rate"],
         buffer_size=config["buffer_size"],
@@ -99,8 +113,8 @@ def train():
     # Train the model with all callbacks.
     model.learn(
         total_timesteps=config["total_timesteps"],
-        callback=checkpoint_callback, #, checkpoint_callback] #, visualize_callback],
-        # callback = [checkpoint_callback, visualize_callback],
+        # callback=checkpoint_callback, #, checkpoint_callback] #, visualize_callback],
+        callback = [checkpoint_callback, visualize_callback],
         tb_log_name="dqn"
     )
 

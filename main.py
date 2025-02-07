@@ -102,7 +102,7 @@ class CropRowEnv(gym.Env):
         else:
             action_type = 2
             value = action - 2  # target corridor index (0 to num_corridors-1)
-        reward = -0.05  # Default step penalty
+        reward = -0.1  # Default step penalty
         done = False
         truncated = False  # Add truncated flag (not used in this environment)
 
@@ -140,7 +140,7 @@ class CropRowEnv(gym.Env):
                     else:
                         self.orientation = 0  # reset orientation after switching
                     self.turn = True
-                    # reward -= 0.15  # Penalize switching/turning too frequently
+                    reward -= 0.1  # Penalize switching/turning too frequently
                 else:
                     reward = -0.5  # invalid target corridor
             else:
@@ -164,7 +164,7 @@ class CropRowEnv(gym.Env):
         # Check goal condition.
         goal_crop, goal_pos = self.sampling_point
         if (pos == goal_pos) and (left_crop_row is not None) and (left_crop_row == goal_crop):
-            reward += 20.0
+            reward += 10.0
             done = True
 
         # Accumulate the reward (for monitoring purposes)
@@ -218,6 +218,25 @@ class CropRowEnv(gym.Env):
 
     def close(self):
         plt.close()
+
+    def valid_actions(self):
+        corridor, pos = self.state
+        valid = []
+        
+        # Vertical movement actions (0: up, 1: down)
+        if self.orientation is None and self.initial_corridor:
+            valid.extend([0, 1])  # Can choose up/down initially
+        else:
+            if self.orientation == 0 and pos < self.corridor_length - 1:
+                valid.append(0)  # Can move up
+            elif self.orientation == 1 and pos > -1:
+                valid.append(1)  # Can move down
+        
+        # Corridor-switching actions (>=2)
+        if pos in (-1, self.corridor_length - 1):  # At boundary
+            valid.extend([2 + c for c in range(self.num_corridors) if c != corridor])
+        
+        return valid
 
 if __name__ == "__main__":
     num_crop_rows = 10
