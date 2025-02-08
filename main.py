@@ -231,7 +231,7 @@ class CropRowEnv(gym.Env):
         self.ax.plot(goal_x, goal_y, 'b*', markersize=15, label="Goal")
 
         self.ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
-        plt.pause(0.0)
+        plt.pause(0.1)
 
     def close(self):
         plt.close()
