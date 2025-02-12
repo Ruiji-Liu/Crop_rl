@@ -13,29 +13,37 @@ class CropRowEnv(gym.Env):
 
     def __init__(self,
                  num_crop_rows=5,      # Number of crop rows (vertical lines). Corridors = num_crop_rows - 1.
-                 corridor_length=12    # Vertical positions: -1 to 11.
+                 corridor_length=12,    # Vertical positions: -1 to 11.
+                 max_episode_steps=100
                 ):
         super(CropRowEnv, self).__init__()
 
+        self.max_episode_steps = max_episode_steps
+    
         self.num_crop_rows = num_crop_rows
         self.num_corridors = num_crop_rows - 1  # corridors between crop rows
-        self.corridor_length = corridor_length
+        self.corridor_length = corridor_length +2
 
         # Randomize start position (corridor and vertical position)
-        self.start_state = (np.random.randint(self.num_corridors),
-                            np.random.randint(0, self.corridor_length - 2))
-        self.state = self.start_state
+        self.state = (np.random.randint(self.num_corridors-1) + 0.5,
+                    np.random.randint(0, self.corridor_length - 2))
+        # self.state = self.start_state
 
         # Randomize goal (sampling point)
         self.sampling_point = (np.random.randint(self.num_crop_rows),
                                np.random.randint(0, self.corridor_length - 2))
-        # The robot's state: (corridor, vertical_position)
+        
+        #(corridor, vertical_position, orientation, target_corridor, in_initial_corridor, sampling_x, sampling_y)
         self.observation_space = spaces.Box(
-            low=np.array([0, -1.5, -1.0], dtype=np.float32),
+            low=np.array([0.5, -1.0, -1.0, 0.5, 0, 0, 0], dtype=np.float32),
             high=np.array([
-                self.num_corridors - 1, 
-                self.corridor_length - 0.5, 
-                1.0
+                self.num_corridors - 0.5, 
+                self.corridor_length - 1, 
+                1.0, #orientation
+                self.num_corridors - 0.5, #target corridor
+                1,  # 1 if in initial corridor, 0 otherwise
+                self.num_crop_rows - 1, 
+                self.corridor_length - 2
             ], dtype=np.float32),
             dtype=np.float32
         )
@@ -68,24 +76,26 @@ class CropRowEnv(gym.Env):
     def reset(self, seed=None, options=None):
         """Reset the environment to the initial state."""
         # Reset the random seed if provided
+        self.current_step = 0
+
         if seed is not None:
             np.random.seed(seed)
         
         # Here you can randomize the state or set fixed values for testing
-        self.state = (np.random.randint(self.num_corridors),
-                    np.random.randint(0, self.corridor_length - 2))
-        # self.state = (0,2)
+        # self.state = (np.random.randint(self.num_corridors-1) + 0.5,
+                    # np.random.randint(0, self.corridor_length - 2))
+        self.state = (0.5,8)
         self.orientation = None
         self.sampling_point = (np.random.randint(self.num_crop_rows),
                             np.random.randint(0, self.corridor_length - 2))
-        # self.sampling_point = (0, 3)
+        self.sampling_point = (1, 1)
         self.path = []
-        self.path.append(self._get_robot_coords())
+        # self.path.append(self._get_robot_coords())
+        self.path.append(self.state)
         self.total_reward = 0
         
         # Return the initial observation and an empty info dict (as required by Gymnasium)
-        
-        return np.array([self.state[0], self.state[1], -1.0], dtype=np.float32), {}
+        return np.array([self.state[0], self.state[1], -1.0, self.state[0], self.initial_corridor, self.sampling_point[0], self.sampling_point[1]], dtype=np.float32), {}
 
     def _get_robot_coords(self):
         """Return the robot's current (x, y) coordinates for visualization."""
@@ -95,15 +105,18 @@ class CropRowEnv(gym.Env):
 
     def step(self, action):
         """Execute an action."""
+        self.current_step += 1
+
         corridor, pos = self.state
+        self.current_corridor = corridor
         # Decode the action into action_type and value
         if action < 2:
             action_type = 0
             value = action  # 0: up, 1: down
         else:
             action_type = 2
-            value = action - 2  # target corridor index (0 to num_corridors-1)
-        reward = -0.05  # Default step penalty
+            value = action - 1.5 # target corridor index (0 to num_corridors-1)
+        reward = -0.1  # Default step penalty
         done = False
         truncated = False  # Add truncated flag (not used in this environment)
 
@@ -133,16 +146,15 @@ class CropRowEnv(gym.Env):
             # Switch corridor.
             self.initial_corridor = False
             if at_end:
-                if 0 <= value < self.num_corridors and value != corridor:
+                if 0.5 <= value < self.num_corridors: #and value != corridor:
                     corridor = value
                     # print("pos", pos, self.corridor_length - 1)
-                    print("corridor", corridor)
                     if pos == self.corridor_length - 1:
                         self.orientation = 1
                     else:
                         self.orientation = 0  # reset orientation after switching
                     self.turn = True
-                    # reward -= 0.15  # Penalize switching/turning too frequently
+                    reward -= 0.1 * (np.abs(self.current_corridor - corridor))  # Penalize switching/turning too frequently
                 else:
                     reward = -0.5  # invalid target corridor
             else:
@@ -151,29 +163,32 @@ class CropRowEnv(gym.Env):
             reward = -0.5  # unknown action
 
         self.state = (corridor, pos)
-        self.path.append(self._get_robot_coords())
+        self.path.append(self.state)
+        # self.path.append(self._get_robot_coords())
 
         # Determine the crop row on the robot's left.
         left_crop_row = None
         if self.orientation is not None:
             if self.initial_corridor:
-                left_crop_row = corridor
+                left_crop_row = corridor - 0.5
             if self.orientation == 0 and self.initial_corridor is False:  # up: left is the crop row at index = corridor
-                left_crop_row = corridor
+                left_crop_row = corridor -0.5
             elif self.orientation == 1 and self.initial_corridor is False:  # down: left is the crop row at index = corridor + 1
-                left_crop_row = corridor + 1
+                left_crop_row = corridor  + 0.5
 
         # Check goal condition.
         goal_crop, goal_pos = self.sampling_point
         if (pos == goal_pos) and (left_crop_row is not None) and (left_crop_row == goal_crop):
-            reward += 20.0
+            reward += 10.0
             done = True
 
         # Accumulate the reward (for monitoring purposes)
         self.total_reward += reward
         # Return the observation, reward, terminated, truncated, and info
         orientation_value = self.orientation if self.orientation is not None else -1.0
-        obs = np.array([corridor, pos, orientation_value], dtype=np.float32)
+        obs = np.array([corridor, pos, orientation_value, corridor, self.initial_corridor, self.sampling_point[0], self.sampling_point[1]], dtype=np.float32)
+        if not done and self.current_step >= self.max_episode_steps:
+            truncated = True
         return obs, reward, done, truncated, {}
 
     def render(self, mode="human"):
@@ -195,7 +210,8 @@ class CropRowEnv(gym.Env):
             self.ax.plot(xs, ys, '--', color='orange', linewidth=1, label="Path")  # Removed 'k--'
 
         # Draw the current robot position.
-        robot_x, robot_y = self._get_robot_coords()
+        # robot_x, robot_y = self._get_robot_coords()
+        robot_x, robot_y = self.state
         self.ax.plot(robot_x, robot_y, 'ro', markersize=12, label="Robot")
 
         # Draw orientation arrows.
@@ -221,6 +237,25 @@ class CropRowEnv(gym.Env):
     def close(self):
         plt.close()
 
+    def valid_actions(self):
+        corridor, pos = self.state
+        valid = []
+        
+        # Vertical movement actions (0: up, 1: down)
+        if self.orientation is None and self.initial_corridor:
+            valid.extend([0, 1])  # Can choose up/down initially
+        else:
+            if self.orientation == 0 and pos < self.corridor_length - 1:
+                valid.append(0)  # Can move up
+            elif self.orientation == 1 and pos > -1:
+                valid.append(1)  # Can move down
+        
+        # Corridor-switching actions (>=2)
+        if pos in (-1, self.corridor_length - 1):  # At boundary
+            valid.extend([2 + c for c in range(self.num_corridors) if c != corridor])
+        
+        return valid
+
 if __name__ == "__main__":
     num_crop_rows = 10
     corridor_length = 10
@@ -244,9 +279,11 @@ if __name__ == "__main__":
                 if env.turn:
                     action = env.orientation  # Continue in the same orientation
                 else:
-                    possible_corridors = [c for c in range(env.num_corridors) if c != env.state[0]]
-                    target = np.random.choice(possible_corridors) if possible_corridors else env.state[0]
-                    action = 2 + target  # Switch to a new corridor (action >= 2)
+                    possible_corridors = [i + 0.5 for i in range(env.num_corridors - 1)]
+                    target = np.random.choice(possible_corridors)
+                    # possible_corridors = [c for c in range(env.num_corridors) if c != env.state[0]]
+                    # target = np.random.choice(possible_corridors) if possible_corridors else env.state[0]
+                    action = int(2 + target)  # Switch to a new corridor (action >= 2)
         
         state, reward, done, _, _ = env.step(action)
         print(f"Action: {action} -> State: {state}, Step Reward: {reward:.2f}, Accumulated Reward: {env.total_reward:.2f}, Done: {done}")

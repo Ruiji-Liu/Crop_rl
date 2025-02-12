@@ -22,7 +22,7 @@ class CropRowEnv(gym.Env):
     
         self.num_crop_rows = num_crop_rows
         self.num_corridors = num_crop_rows - 1  # corridors between crop rows
-        self.corridor_length = corridor_length
+        self.corridor_length = corridor_length +2
 
         # Randomize start position (corridor and vertical position)
         self.state = (np.random.randint(self.num_corridors-1) + 0.5,
@@ -84,11 +84,11 @@ class CropRowEnv(gym.Env):
         # Here you can randomize the state or set fixed values for testing
         self.state = (np.random.randint(self.num_corridors-1) + 0.5,
                     np.random.randint(0, self.corridor_length - 2))
-        # self.state = (0.5,6)
+        # self.state = (0.5,8)
         self.orientation = None
         self.sampling_point = (np.random.randint(self.num_crop_rows),
                             np.random.randint(0, self.corridor_length - 2))
-        # self.sampling_point = (0, 2)
+        # self.sampling_point = (1, 1)
         self.path = []
         # self.path.append(self._get_robot_coords())
         self.path.append(self.state)
@@ -108,6 +108,7 @@ class CropRowEnv(gym.Env):
         self.current_step += 1
 
         corridor, pos = self.state
+        self.current_corridor = corridor
         # Decode the action into action_type and value
         if action < 2:
             action_type = 0
@@ -141,10 +142,10 @@ class CropRowEnv(gym.Env):
             elif self.orientation == 1:  # moving down
                 if pos > -1:
                     pos -= 1
-        elif action_type == 2:
+        elif at_end:
             # Switch corridor.
             self.initial_corridor = False
-            if at_end:
+            if action_type == 2:
                 if 0.5 <= value < self.num_corridors: #and value != corridor:
                     corridor = value
                     # print("pos", pos, self.corridor_length - 1)
@@ -153,7 +154,7 @@ class CropRowEnv(gym.Env):
                     else:
                         self.orientation = 0  # reset orientation after switching
                     self.turn = True
-                    reward -= 0.1  # Penalize switching/turning too frequently
+                    reward -= 0.1 * (np.abs(self.current_corridor - corridor))  # Penalize switching/turning too frequently
                 else:
                     reward = -0.5  # invalid target corridor
             else:
@@ -278,7 +279,8 @@ if __name__ == "__main__":
                 if env.turn:
                     action = env.orientation  # Continue in the same orientation
                 else:
-                    possible_corridors = [i + 0.5 for i in range(env.num_corridors - 1)]
+                    possible_corridors = [i + 0.5 for i in range(env.num_corridors)]
+                    print("possible corridors", possible_corridors)
                     target = np.random.choice(possible_corridors)
                     # possible_corridors = [c for c in range(env.num_corridors) if c != env.state[0]]
                     # target = np.random.choice(possible_corridors) if possible_corridors else env.state[0]

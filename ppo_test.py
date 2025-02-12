@@ -7,8 +7,8 @@ from main import CropRowEnv  # Import your custom environment
 
 # Configuration (same as in train.py)
 config = {
-    "num_crop_rows": 6,
-    "corridor_length": 6,
+    "num_crop_rows": 10,
+    "corridor_length": 10,
     "log_dir": "./logs",
 }
 

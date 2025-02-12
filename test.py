@@ -4,7 +4,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'  # Add this line to suppress OpenMP 
 
 import numpy as np
 from stable_baselines3 import DQN
-from main import CropRowEnv  # Import your custom environment
+from main_dqn import CropRowEnv  # Import your custom environment
 
 # Configuration (same as in train.py)
 config = {
@@ -23,7 +23,7 @@ def test():
     # Load the trained model
     model_path = os.path.join(config["log_dir"], "dqn_crop_final.zip")
     # model_path = os.path.join(config["log_dir"], "dqn_crop_300000_steps.zip")
-    # model_path = os.path.join(config["model_dir"], "kind_of_working.zip")
+    # model_path = os.path.join(config["model_dir"], "dqn_crop_6x6.zip")
     
     model = DQN.load(model_path)
 

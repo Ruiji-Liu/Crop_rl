@@ -47,7 +47,7 @@ def train():
     env = make_vec_env(
         CropRowEnv, 
         n_envs=1, 
-        env_kwargs={'num_crop_rows': 6, 'corridor_length': 6}
+        env_kwargs={'num_crop_rows': 10, 'corridor_length': 10}
     )
 
     # Create the PPO model. You can pass additional policy keyword arguments if desired.

@@ -2,7 +2,7 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 import numpy as np
 from stable_baselines3 import DQN
-from main import CropRowEnv
+from main_dqn import CropRowEnv
 
 config = {
     "num_crop_rows": 6,

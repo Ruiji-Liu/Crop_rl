@@ -6,7 +6,9 @@ from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from stable_baselines3.common.env_util import DummyVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 # from main_backup import CropRowEnv
-from main import CropRowEnv
+# from main import CropRowEnv
+from main_dqn import CropRowEnv
+
 
 import matplotlib.pyplot as plt
 import gymnasium as gym
@@ -18,12 +20,12 @@ import numpy as np
 config = {
     "total_timesteps": 1000000,
     "log_dir": "./logs",
-    "save_freq": 100000,
+    "save_freq": 250000,
     "policy": "MlpPolicy",
-    "learning_rate": 1e-5,
-    "buffer_size": 10000,
+    "learning_rate": 1e-4,
+    "buffer_size": 100000,
     "learning_starts": 0,
-    "batch_size": 128,
+    "batch_size": 256,
     "gamma": 0.99,
     "target_update_interval": 2000,
     # Render every N steps (set to 1 for every step or higher for less frequent rendering)
@@ -81,7 +83,7 @@ def train():
     env = make_vec_env(
         CropRowEnv, 
         n_envs=1, 
-        env_kwargs={'num_crop_rows': 6, 'corridor_length': 6, 'max_episode_steps': 50}
+        env_kwargs={'num_crop_rows': 6, 'corridor_length': 6, 'max_episode_steps': 100}
     )
 
     # Create the model.
