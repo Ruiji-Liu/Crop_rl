@@ -86,12 +86,13 @@ class CropRowEnv(gym.Env):
         # Here you can randomize the state or set fixed values for testing
         self.state = (np.random.randint(self.num_corridors-1) + 0.5,
                     np.random.randint(0, self.corridor_length - 2))
-        # self.state = (0.5,5)
+        self.state = (0.5,1)
         # self.orientation = None
-        self.orientation = np.random.choice([0, 1])
+        # self.orientation = np.random.choice([0, 1])
+        self.orientation = 1
         self.sampling_point = (np.random.randint(self.num_crop_rows),
                             np.random.randint(0, self.corridor_length - 2))
-        # self.sampling_point = (4, 5)
+        self.sampling_point = (4, 4)
         self.path = []
         # self.path.append(self._get_robot_coords())
         self.path.append(self.state)
@@ -248,7 +249,7 @@ class CropRowEnv(gym.Env):
         self.ax.plot(goal_x, goal_y, 'b*', markersize=15, label="Goal")
 
         self.ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
-        plt.pause(0.1)
+        plt.pause(0.8)
 
     def close(self):
         plt.close()

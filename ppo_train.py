@@ -4,7 +4,8 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from stable_baselines3.common.env_util import make_vec_env
-from main import CropRowEnv  # Ensure this imports your custom environment
+from main_ppo_norm import CropRowEnv  # Ensure this imports your custom environment
+# from main_ppo import CropRowEnv
 import matplotlib.pyplot as plt
 
 # Enable interactive plotting if you want to visualize during training.
@@ -12,13 +13,13 @@ import matplotlib.pyplot as plt
 
 # Configuration for PPO training
 config = {
-    "total_timesteps": 100000,           # Total timesteps for training
+    "total_timesteps": 900000,           # Total timesteps for training
     "log_dir": "./logs",                 # Directory for logs and checkpoints
-    "save_freq": 10000,                  # Frequency (in timesteps) to save a checkpoint
+    "save_freq": 300000,                  # Frequency (in timesteps) to save a checkpoint
     "policy": "MlpPolicy",               # Policy network type; MLP is suitable for low-dimensional inputs
-    "learning_rate": 3e-4,               # PPO's default learning rate
+    "learning_rate": 1e-4,               # PPO's default learning rate
     "n_steps": 2048,                     # Number of steps to run for each environment per update
-    "batch_size": 64,                    # Mini-batch size for optimization
+    "batch_size": 256,                    # Mini-batch size for optimization
     "gamma": 0.99,                       # Discount factor
     "clip_range": 0.2,                   # Clipping range for PPO (helps stabilize training)
     "ent_coef": 0.0,                     # Entropy coefficient (set to >0 to encourage exploration)
@@ -47,13 +48,14 @@ def train():
     env = make_vec_env(
         CropRowEnv, 
         n_envs=1, 
-        env_kwargs={'num_crop_rows': 10, 'corridor_length': 10}
+        env_kwargs={'num_crop_rows': 6, 'corridor_length': 6, 'max_episode_steps': 1000}
     )
 
     # Create the PPO model. You can pass additional policy keyword arguments if desired.
     model = PPO(
         config["policy"],
         env,
+        policy_kwargs=dict(net_arch=[256, 256]),
         verbose=1,
         learning_rate=config["learning_rate"],
         n_steps=config["n_steps"],

@@ -21,10 +21,10 @@ def test():
                      max_episode_steps=config["max_episode_steps"])
 
     # Load the trained model
-    model_path = os.path.join(config["log_dir"], "dqn_crop_final.zip")
+    # model_path = os.path.join(config["log_dir"], "dqn_crop_final.zip")
     # model_path = os.path.join(config["log_dir"], "dqn_crop_300000_steps.zip")
-    # model_path = os.path.join(config["model_dir"], "dqn_crop_6x6.zip")
-    
+    model_path = os.path.join(config["model_dir"], "dqn_crop_6x6_final.zip")
+    # model_path = "models/dqn_crop_final.zip"
     model = DQN.load(model_path)
 
     # Reset the environment

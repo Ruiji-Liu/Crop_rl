@@ -1,14 +1,13 @@
 import os
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'  # Suppress OpenMP error
-
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import numpy as np
-from stable_baselines3 import PPO  # Use PPO since your model is PPO
-from main import CropRowEnv  # Import your custom environment
+from stable_baselines3 import PPO
+from main_ppo_norm import CropRowEnv  # Import your custom environment
 
 # Configuration (same as in train.py)
 config = {
-    "num_crop_rows": 10,
-    "corridor_length": 10,
+    "num_crop_rows": 6,
+    "corridor_length": 50,
     "log_dir": "./logs",
 }
 
@@ -17,7 +16,7 @@ def test():
     env = CropRowEnv(num_crop_rows=config["num_crop_rows"], corridor_length=config["corridor_length"])
     
     # Load the trained PPO model
-    model_path = os.path.join(config["log_dir"], "ppo_crop_50000_steps.zip")
+    model_path = os.path.join(config["log_dir"], "ppo_crop_final.zip")
     model = PPO.load(model_path)
     
     # Reset the environment
@@ -30,8 +29,13 @@ def test():
     while not done:
         # Use the model to predict the action (deterministic for testing)
         action, _ = model.predict(obs, deterministic=True)
+
+        # Ensure action is formatted correctly (for MultiDiscrete action space)
+        if isinstance(action, np.ndarray):
+            action = action.astype(int)  # Convert to int if needed
+        
         action_num += 1
-        print("Action:", action, "Step:", action_num)
+        print(f"Step {action_num} | Action: {action} | Obs: {obs}")
         
         # Execute the action in the environment
         obs, reward, terminated, truncated, info = env.step(action)
@@ -42,6 +46,9 @@ def test():
         
         # Render the environment
         env.render()
+
+        # Debugging Information
+        print(f"Reward: {reward}, Total Reward: {total_reward}, Done: {done}, Info: {info}")
     
     # Close the environment
     env.close()
